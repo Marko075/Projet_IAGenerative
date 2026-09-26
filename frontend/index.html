@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mon Chatbot</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    #chatBox {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 15px;
+      min-height: 200px;
+      margin-bottom: 15px;
+      background: #f9f9f9;
+    }
+    #userInput {
+      width: 75%;
+      padding: 10px;
+    }
+    button {
+      padding: 10px 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mon Chatbot</h1>
+
+  <div id="chatBox"></div>
+
+  <input type="text" id="userInput" placeholder="Pose ta question..." />
+  <button onclick="envoyerMessage()">Envoyer</button>
+
+  <script>
+    async function envoyerMessage() {
+      const input = document.getElementById("userInput");
+      const chatBox = document.getElementById("chatBox");
+      const message = input.value.trim();
+
+      if (!message) return;
+
+      chatBox.innerHTML += `<p><strong>Toi :</strong> ${message}</p>`;
+      input.value = "";
+
+      chatBox.innerHTML += `<p id="loading"><em>Le chatbot réfléchit...</em></p>`;
+
+      try {
+        const res = await fetch("http://3.72.104.176:3000/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await res.json();
+        document.getElementById("loading").remove();
+        chatBox.innerHTML += `<p><strong>Chatbot :</strong> ${data.response}</p>`;
+      } catch (err) {
+        document.getElementById("loading").remove();
+        chatBox.innerHTML += `<p style="color:red;">Erreur : impossible de contacter le serveur</p>`;
+      }
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Permet d'envoyer avec la touche Entrée
+    document.getElementById("userInput").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") envoyerMessage();
+    });
+  </script>
+</body>
+</html>
