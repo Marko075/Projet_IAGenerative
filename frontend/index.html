@@ -49,7 +49,7 @@
       chatBox.innerHTML += `<p id="loading"><em>Le chatbot réfléchit...</em></p>`;
 
       try {
-        const res = await fetch("http://3.72.104.176:3000/api/chat", {
+        const res = await fetch("http://3.75.219.6:3000/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message })
