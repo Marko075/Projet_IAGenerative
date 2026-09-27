@@ -1,15 +1,18 @@
-import { askBedrock } from "../services/BedrockService.js";
+import { askBedrock, resumerPowerPoint } from "../services/BedrockService.js";
 
 export async function handleChat(req, res) {
   try {
-    const { message } = req.body;
+    const { message, image, document, documentType } = req.body;
 
-    if (!message) {
-      return res.status(400).json({ error: "Le champ 'message' est requis" });
+    let reponse;
+
+    if (documentType === "pptx" && document) {
+      reponse = await resumerPowerPoint(document, message);
+    } else {
+      reponse = await askBedrock(message, image || null);
     }
 
-    const answer = await askBedrock(message);
-    res.json({ response: answer });
+    res.json({ response: reponse });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erreur serveur" });
