@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <title>Mon Chatbot</title>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -74,10 +72,8 @@
           chatBox.innerHTML += `<p style="color:red;">Erreur serveur : ${data.error || "inconnue"}</p>`;
         } else {
           const idReponse = "reponse-" + Date.now();
-          chatBox.innerHTML += `
-            <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
-          `;
-        }
+          chatBox.innerHTML += `<p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>`;
+                  }
       } catch (err) {
         document.getElementById("loading").remove();
         chatBox.innerHTML += `<p style="color:red;">Erreur : impossible de contacter le serveur</p>`;
