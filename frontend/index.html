@@ -1,8 +1,6 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <title>Mon Chatbot</title>
+ <!-- Librairie pour générer des PDF, chargée depuis internet -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -18,12 +16,28 @@
       margin-bottom: 15px;
       background: #f9f9f9;
     }
+    #chatBox img {
+      max-width: 200px;
+      display: block;
+      margin: 8px 0;
+      border-radius: 6px;
+    }
     #userInput {
-      width: 75%;
+      width: 60%;
       padding: 10px;
     }
     button {
-      padding: 10px 20px;
+      padding: 10px 15px;
+      margin-left: 5px;
+    }
+    .download-btn {
+      font-size: 12px;
+      padding: 4px 8px;
+      margin-top: 4px;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -32,10 +46,32 @@
 
   <div id="chatBox"></div>
 
+  <!-- Zone pour choisir une image à afficher -->
+  <input type="file" id="imageInput" accept="image/*" />
+  <br /><br />
+
+  <!-- Zone pour écrire un message -->
   <input type="text" id="userInput" placeholder="Pose ta question..." />
   <button onclick="envoyerMessage()">Envoyer</button>
 
   <script>
+    let dernierMessageBot = ""; // on garde en mémoire la dernière réponse du bot
+
+    // ---------- FONCTION 1 : afficher une image choisie ----------
+    document.getElementById("imageInput").addEventListener("change", function (e) {
+      const fichier = e.target.files[0];
+      if (!fichier) return;
+
+      const lecteur = new FileReader();
+      lecteur.onload = function (event) {
+        const chatBox = document.getElementById("chatBox");
+        chatBox.innerHTML += `<p><strong>Toi (image) :</strong></p><img src="${event.target.result}" />`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+      };
+      lecteur.readAsDataURL(fichier);
+    });
+
+    // ---------- FONCTION 2 : envoyer un message texte au chatbot ----------
     async function envoyerMessage() {
       const input = document.getElementById("userInput");
       const chatBox = document.getElementById("chatBox");
@@ -57,7 +93,14 @@
 
         const data = await res.json();
         document.getElementById("loading").remove();
-        chatBox.innerHTML += `<p><strong>Chatbot :</strong> ${data.response}</p>`;
+
+        dernierMessageBot = data.response; // on garde la réponse en mémoire
+
+        const idReponse = "reponse-" + Date.now();
+        chatBox.innerHTML += `
+          <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
+          <button class="download-btn" onclick="telechargerPDF('${idReponse}')">📄 Télécharger en PDF</button>
+        `;
       } catch (err) {
         document.getElementById("loading").remove();
         chatBox.innerHTML += `<p style="color:red;">Erreur : impossible de contacter le serveur</p>`;
@@ -66,8 +109,22 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    // ---------- FONCTION 3 : télécharger une réponse en PDF ----------
+    function telechargerPDF(idReponse) {
+      const texte = document.getElementById(idReponse).innerText.replace("Chatbot :", "").trim();
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(12);
+      const lignes = doc.splitTextToSize(texte, 180); // pour que le texte revienne à la ligne proprement
+      doc.text(lignes, 10, 10);
+
+      doc.save("reponse-chatbot.pdf");
+    }
+
     // Permet d'envoyer avec la touche Entrée
-    document.getElementById("userInput").addEventListener("keypress", function(e) {
+    document.getElementById("userInput").addEventListener("keypress", function (e) {
       if (e.key === "Enter") envoyerMessage();
     });
   </script>
