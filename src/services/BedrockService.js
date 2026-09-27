@@ -8,6 +8,15 @@ const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
 const MODEL_TEXTE = "zai.glm-4.7-flash";       // pour le texte simple et les PowerPoint résumés
 const MODEL_VISION = "zai.glm-4.6v-flash";     // pour les images
 
+// ---------- Extraction robuste du texte depuis la réponse Bedrock ----------
+function extraireTexte(response) {
+  const blocs = response.output.message.content;
+  console.log("Contenu brut renvoyé par le modèle :", JSON.stringify(blocs, null, 2));
+
+  const blocTexte = blocs.find(bloc => bloc.text);
+  return blocTexte ? blocTexte.text : "Je n'ai pas réussi à générer de réponse.";
+}
+
 // ---------- Appel simple (texte seul, ou texte + image) ----------
 export async function askBedrock(prompt, imageBase64 = null) {
   const content = [{ text: prompt }];
@@ -30,7 +39,7 @@ export async function askBedrock(prompt, imageBase64 = null) {
   });
 
   const response = await client.send(command);
-  return response.output.message.content[0].text;
+  return extraireTexte(response);
 }
 
 // ---------- Résumé d'un PowerPoint ----------
