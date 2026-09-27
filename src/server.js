@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { AppError } from "./errors.js";
 import authRoute from "./routes/AuthRoute.js";
 import chatRoute from "./routes/ChatRoute.js";
+import { amorcerAdmin } from "./services/AuthService.js";
 import conversationRoute from "./routes/ConversationRoute.js";
 
 const app = express();
@@ -32,5 +33,8 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: "Erreur serveur.", code: "INTERNAL_ERROR" });
 });
+
+const admin = await amorcerAdmin();
+if (admin) console.log(`👤 Compte admin créé : ${admin.email}`);
 
 app.listen(config.port, () => console.log(`✅ Serveur lancé sur http://localhost:${config.port} (modèle : ${config.modele.id})`));

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
 import { promisify } from "node:util";
 import { config } from "../config.js";
 import { AppError } from "../errors.js";
@@ -42,6 +43,35 @@ export async function creerUtilisateur({ email, motDePasse, nom, role = "user" }
     name: nom || emailNormalise.split("@")[0],
     role,
     passwordHash: await hacherMotDePasse(motDePasse),
+    createdAt: new Date().toISOString(),
+  };
+  db.users.push(user);
+  await sauvegarder();
+  return user;
+}
+
+// Compte admin amorcé depuis src/seed/admin.json (email + hash, jamais le mot de passe en clair).
+// Créé au démarrage s'il n'existe pas encore ; un compte existant n'est jamais réécrasé.
+const FICHIER_AMORCAGE = new URL("../seed/admin.json", import.meta.url);
+
+export async function amorcerAdmin() {
+  let amorce;
+  try {
+    amorce = JSON.parse(await fs.readFile(FICHIER_AMORCAGE, "utf8"));
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw new Error(`Fichier d'amorçage admin illisible : ${err.message}`);
+  }
+
+  const email = amorce.email.trim().toLowerCase();
+  if (db.users.some((u) => u.email === email)) return null;
+
+  const user = {
+    id: crypto.randomUUID(),
+    email,
+    name: amorce.name || "Administrateur",
+    role: "admin",
+    passwordHash: amorce.passwordHash,
     createdAt: new Date().toISOString(),
   };
   db.users.push(user);
