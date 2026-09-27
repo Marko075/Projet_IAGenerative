@@ -99,7 +99,7 @@
         const idReponse = "reponse-" + Date.now();
         chatBox.innerHTML += `
           <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
-          <button class="download-btn" onclick="telechargerPDF('${idReponse}')">📄 Télécharger en PDF</button>
+          <button class="download-btn" onclick="telechargerPDF('${idReponse}')">Télécharger en PDF</button>
         `;
       } catch (err) {
         document.getElementById("loading").remove();
