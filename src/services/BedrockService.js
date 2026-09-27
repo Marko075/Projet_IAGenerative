@@ -63,28 +63,29 @@ export async function askBedrock(historique, message, { signal } = {}) {
   };
 }
 
-// ---------- Résumé d'un PowerPoint ----------
-async function extraireTextePowerPoint(fichierBase64) {
+// ---------- Documents joints (PDF, Word, Excel, PowerPoint) ----------
+async function extraireTexteDocument(fichierBase64, type) {
   try {
-    const ast = await OfficeParser.parseOffice(Buffer.from(fichierBase64, "base64"), { fileType: "pptx" });
+    const ast = await OfficeParser.parseOffice(Buffer.from(fichierBase64, "base64"), { fileType: type });
     return (await ast.to("text")).value.trim();
   } catch (err) {
-    console.error(`[pptx] ${err.name}: ${err.message}`);
-    throw new AppError(400, "INVALID_DOCUMENT", "Impossible de lire ce fichier PowerPoint.");
+    console.error(`[document ${type}] ${err.name}: ${err.message}`);
+    throw new AppError(400, "INVALID_DOCUMENT", `Impossible de lire ce fichier ${config.formatsDocument[type]}.`);
   }
 }
 
-export async function resumerPowerPoint(fichierBase64, messageUtilisateur, { historique = [], signal } = {}) {
-  let texteExtrait = await extraireTextePowerPoint(fichierBase64);
+export async function resumerDocument(fichierBase64, { nom, type }, messageUtilisateur, { historique = [], signal } = {}) {
+  let texteExtrait = await extraireTexteDocument(fichierBase64, type);
   if (!texteExtrait) {
-    throw new AppError(400, "EMPTY_DOCUMENT", "Ce PowerPoint ne contient aucun texte exploitable.");
+    const detail = type === "pdf" ? " (un PDF scanné, sans texte sélectionnable, ne peut pas être lu)" : "";
+    throw new AppError(400, "EMPTY_DOCUMENT", `Ce document ne contient aucun texte exploitable${detail}.`);
   }
 
   const { caracteresDocument } = config.limites;
   const tronque = texteExtrait.length > caracteresDocument;
   if (tronque) texteExtrait = texteExtrait.slice(0, caracteresDocument);
 
-  const prompt = `Voici le contenu extrait d'un document PowerPoint${tronque ? " (tronqué car trop long)" : ""} :
+  const prompt = `Voici le contenu extrait du document ${config.formatsDocument[type]} « ${nom} »${tronque ? " (tronqué car trop long)" : ""} :
 
 ${texteExtrait}
 

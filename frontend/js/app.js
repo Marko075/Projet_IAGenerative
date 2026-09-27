@@ -1,5 +1,5 @@
 import { api, jeton, quandSessionExpiree, stockage } from "./api.js";
-import { NOM_ASSISTANT, TAILLE_MAX_PPTX } from "./config.js";
+import { FORMATS_DOCUMENT, NOM_ASSISTANT, TAILLE_MAX_DOCUMENT } from "./config.js";
 import { copier, el, hydraterIcones, icone, logo } from "./dom.js";
 import { rendreMarkdown } from "./markdown.js";
 import { appliquerTheme, themeActuel } from "./theme.js";
@@ -57,7 +57,7 @@ const etat = {
   titre: null,
   messages: [],
   chargement: false,
-  enCours: null,       // { controleur, type: "send" | "regen", pptx, silencieux }
+  enCours: null,       // { controleur, type: "send" | "regen", document, silencieux }
   echec: null,         // { messageUtilisateur, erreur, relancer }
   pieceJointe: null,   // { nom, base64 }
   recherche: "",
@@ -440,7 +440,7 @@ function rendreAccueil() {
     { icone: "mail", texte: "Rédige un e-mail pour annoncer une réunion d'équipe lundi à 10 h" },
     { icone: "scale", texte: "Explique-moi les grands principes du RGPD en 5 points" },
     { icone: "layout", texte: "Aide-moi à structurer une présentation de projet" },
-    { icone: "file", texte: "Résumer un PowerPoint (.pptx)", action: () => dom.fileInput.click() },
+    { icone: "file", texte: "Résumer un document (PDF, Word, Excel, PowerPoint)", action: () => dom.fileInput.click() },
   ];
   const prenom = etat.mode === "user" ? etat.user.name : null;
   return el("div", { class: "empty" },
@@ -459,14 +459,14 @@ function rendreMessageUtilisateur(message) {
   if (message.attachment) {
     bloc.append(el("div", { class: "attachment-chip" }, icone("file"), el("span", { text: message.attachment })));
   }
-  const texte = message.attachment ? message.content.replace(/^\[PowerPoint joint : [^\]]*\]\s?/, "") : message.content;
+  const texte = message.attachment ? message.content.replace(/^\[(?:Fichier|PowerPoint) joint : [^\]]*\]\s?/, "") : message.content;
   if (texte) bloc.append(el("div", { class: "bubble", text: texte }));
   return bloc;
 }
 
 function peutRegenerer(index) {
   if (etat.enCours || index !== etat.messages.length - 1) return false;
-  // En invité, le PowerPoint n'est pas conservé : impossible de redemander un résumé.
+  // En invité, le document n'est pas conservé : impossible de redemander un résumé.
   return !(etat.mode === "guest" && etat.messages[index - 1]?.attachment);
 }
 
@@ -502,7 +502,7 @@ function rendreMessageAssistant(message, index) {
 }
 
 function rendreReflexion() {
-  const libelle = etat.enCours.pptx ? "Lecture du PowerPoint…" : `${NOM_ASSISTANT} réfléchit…`;
+  const libelle = etat.enCours.document ? "Lecture du document…" : `${NOM_ASSISTANT} réfléchit…`;
   return el("div", { class: "msg msg-assistant" },
     logo(),
     el("div", { class: "msg-body" },
@@ -648,10 +648,10 @@ async function envoyer(texte, pieceJointe) {
   const messageUtilisateur = {
     id: idLocal(),
     role: "user",
-    content: pieceJointe ? `[PowerPoint joint : ${pieceJointe.nom}]${texte ? ` ${texte}` : ""}` : texte,
+    content: pieceJointe ? `[Fichier joint : ${pieceJointe.nom}]${texte ? ` ${texte}` : ""}` : texte,
     attachment: pieceJointe?.nom,
   };
-  const tache = { controleur: new AbortController(), type: "send", pptx: !!pieceJointe, silencieux: false };
+  const tache = { controleur: new AbortController(), type: "send", document: !!pieceJointe, silencieux: false };
   let conversationCreee = null; // créée pour ce premier message : supprimée si l'envoi n'aboutit pas
   etat.echec = null;
   etat.messages.push(messageUtilisateur);
@@ -680,7 +680,7 @@ async function envoyer(texte, pieceJointe) {
     } else {
       const historique = etat.messages.slice(0, -1).map(({ role, content }) => ({ role, content }));
       const data = pieceJointe
-        ? await api.pptxInvite(pieceJointe.base64, texte, tache.controleur.signal)
+        ? await api.documentInvite(pieceJointe.base64, pieceJointe.nom, texte, tache.controleur.signal)
         : await api.chatInvite(texte, historique, tache.controleur.signal);
       etat.messages.push({ id: idLocal(), role: "assistant", content: data.response, truncated: data.truncated });
       if (!etat.titre) etat.titre = pieceJointe ? `Résumé : ${pieceJointe.nom}` : titreAuto(texte);
@@ -723,7 +723,7 @@ async function envoyer(texte, pieceJointe) {
 async function regenerer() {
   if (etat.enCours || etat.messages.at(-1)?.role !== "assistant") return;
 
-  const tache = { controleur: new AbortController(), type: "regen", pptx: false, silencieux: false };
+  const tache = { controleur: new AbortController(), type: "regen", document: false, silencieux: false };
   etat.echec = null;
   etat.enCours = tache;
   rendreFil();
@@ -820,11 +820,14 @@ dom.composerInput.addEventListener("keydown", (e) => {
   }
 });
 
-// Pièce jointe PowerPoint : bouton trombone ou glisser-déposer
+// Pièce jointe (PDF, Word, Excel, PowerPoint) : bouton trombone ou glisser-déposer
 function lireFichier(fichier) {
   if (!fichier) return;
-  if (!fichier.name.toLowerCase().endsWith(".pptx")) return toast("Seuls les fichiers PowerPoint (.pptx) sont acceptés.");
-  if (fichier.size > TAILLE_MAX_PPTX) return toast("Fichier trop volumineux (10 Mo maximum).");
+  const extension = fichier.name.includes(".") ? fichier.name.split(".").pop().toLowerCase() : "";
+  if (!FORMATS_DOCUMENT[extension]) {
+    return toast("Formats acceptés : PDF, Word (.docx), Excel (.xlsx) et PowerPoint (.pptx).", 3500);
+  }
+  if (fichier.size > TAILLE_MAX_DOCUMENT) return toast("Fichier trop volumineux (10 Mo maximum).");
 
   const lecteur = new FileReader();
   lecteur.onload = () => {

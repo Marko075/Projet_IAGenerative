@@ -2,6 +2,7 @@ import { config } from "./config.js";
 import { AppError } from "./errors.js";
 
 const { longueurMessage, longueurMessageHistorique, messagesHistorique } = config.limites;
+const { formatsDocument } = config;
 
 function erreurRequete(message) {
   return new AppError(400, "INVALID_REQUEST", message);
@@ -62,7 +63,7 @@ export function validerRequeteChat(corps) {
 
 function validerDocument(document) {
   if (typeof document !== "string" || !document) {
-    throw erreurRequete(`Le champ "document" (fichier .pptx en base64) est obligatoire.`);
+    throw erreurRequete(`Le champ "document" (fichier encodé en base64) est obligatoire.`);
   }
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(document)) {
     throw erreurRequete(`Le champ "document" n'est pas un base64 valide.`);
@@ -70,27 +71,29 @@ function validerDocument(document) {
   return document;
 }
 
+// Le format est déduit de l'extension du nom de fichier et doit faire partie des formats acceptés.
 function validerNomDocument(nom) {
-  const texte = validerTexte(nom, "documentName", { obligatoire: false, longueurMax: 200 });
-  return texte || "présentation.pptx";
+  const texte = validerTexte(nom, "documentName", { obligatoire: true, longueurMax: 200 });
+  const extension = texte.includes(".") ? texte.split(".").pop().toLowerCase() : "";
+  if (!formatsDocument[extension]) {
+    const acceptes = Object.keys(formatsDocument).map((e) => `.${e}`).join(", ");
+    throw erreurRequete(`Format de fichier non pris en charge. Formats acceptés : ${acceptes}.`);
+  }
+  return { nomDocument: texte, typeDocument: extension };
 }
 
-export function validerRequetePowerPoint(corps) {
+// Document joint + consigne facultative (mode invité, ou message d'une conversation enregistrée).
+export function validerRequeteDocument(corps) {
   return {
     document: validerDocument(corps?.document),
+    ...validerNomDocument(corps?.documentName),
     message: validerTexte(corps?.message, "message", { obligatoire: false }),
   };
 }
 
-// Message dans une conversation enregistrée : texte seul, ou PowerPoint + consigne facultative.
+// Message dans une conversation enregistrée : texte seul, ou document + consigne facultative.
 export function validerRequeteMessage(corps) {
-  if (corps?.document !== undefined) {
-    return {
-      document: validerDocument(corps.document),
-      nomDocument: validerNomDocument(corps.documentName),
-      message: validerTexte(corps?.message, "message", { obligatoire: false }),
-    };
-  }
+  if (corps?.document !== undefined) return validerRequeteDocument(corps);
   return { message: validerTexte(corps?.message, "message", { obligatoire: true }) };
 }
 

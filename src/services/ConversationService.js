@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { AppError } from "../errors.js";
 import { db, sauvegarder } from "../store/JsonStore.js";
 import { bornerHistorique } from "../validation.js";
-import { askBedrock, resumerPowerPoint } from "./BedrockService.js";
+import { askBedrock, resumerDocument } from "./BedrockService.js";
 
 const LONGUEUR_TITRE_AUTO = 60;
 
@@ -87,17 +87,17 @@ export async function supprimer(userId, id) {
 // ---------- Échanges avec le modèle ----------
 // Rien n'est enregistré si l'appel au modèle échoue (ou si le client annule) :
 // la conversation reste une alternance propre user / assistant.
-export async function envoyerMessage(userId, id, { message, document, nomDocument }, { signal } = {}) {
+export async function envoyerMessage(userId, id, { message, document, nomDocument, typeDocument }, { signal } = {}) {
   const conversation = trouver(userId, id);
 
   return avecVerrou(id, async () => {
     const historique = historiquePourModele(conversation.messages);
     const resultat = document
-      ? await resumerPowerPoint(document, message, { historique, signal })
+      ? await resumerDocument(document, { nom: nomDocument, type: typeDocument }, message, { historique, signal })
       : await askBedrock(historique, message, { signal });
 
     const contenuUtilisateur = document
-      ? `[PowerPoint joint : ${nomDocument}]${message ? ` ${message}` : ""}`
+      ? `[Fichier joint : ${nomDocument}]${message ? ` ${message}` : ""}`
       : message;
     const messageUtilisateur = nouveauMessage("user", contenuUtilisateur, document ? { attachment: nomDocument } : {});
     const messageAssistant = nouveauMessage("assistant", resultat.texte, { truncated: resultat.tronquee });

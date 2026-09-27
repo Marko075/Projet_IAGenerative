@@ -29,12 +29,17 @@ const REGIONS = {
   "us-west-2": "Oregon, États-Unis",
 };
 
+// Documents acceptés en pièce jointe (extension -> libellé), lus par officeparser.
+const FORMATS_DOCUMENT = { pdf: "PDF", docx: "Word", xlsx: "Excel", pptx: "PowerPoint" };
+
 export const config = {
   port: entier("PORT", 3000),
   awsRegion: process.env.AWS_REGION,
   nomAssistant: "Transformers",
   fournisseur: "AWS Bedrock",
   libelleRegion: REGIONS[process.env.AWS_REGION] || process.env.AWS_REGION || "région inconnue",
+
+  formatsDocument: FORMATS_DOCUMENT,
 
   stockage: {
     fichier: process.env.DATA_FILE || "data/db.json",
@@ -59,7 +64,7 @@ export const config = {
   },
 
   limites: {
-    tailleCorpsRequete: process.env.MAX_BODY_SIZE || "15mb", // un .pptx encodé en base64
+    tailleCorpsRequete: process.env.MAX_BODY_SIZE || "15mb", // un document de 10 Mo encodé en base64
     longueurMessage: entier("MAX_MESSAGE_LENGTH", 8000),
     longueurMessageHistorique: entier("MAX_HISTORY_MESSAGE_LENGTH", 20000), // les réponses du modèle peuvent être longues
     messagesHistorique: entier("MAX_HISTORY_MESSAGES", 20), // nombre pair : paires question/réponse

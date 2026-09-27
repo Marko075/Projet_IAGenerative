@@ -80,5 +80,6 @@ export const api = {
 
   // Mode invité : rien n'est enregistré côté serveur, l'historique est envoyé à chaque fois.
   chatInvite: (message, history, signal) => requete("/chat", { method: "POST", body: { message, history }, signal }),
-  pptxInvite: (document, message, signal) => requete("/pptx/summarize", { method: "POST", body: { document, message }, signal }),
+  documentInvite: (document, documentName, message, signal) =>
+    requete("/document/summarize", { method: "POST", body: { document, documentName, message }, signal }),
 };
