@@ -120,14 +120,18 @@
           body: JSON.stringify(corps)
         });
 
-        const data = await res.json();
-        document.getElementById("loading").remove();
+const data = await res.json();
+document.getElementById("loading").remove();
 
-        const idReponse = "reponse-" + Date.now();
-        chatBox.innerHTML += `
-          <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
-          <button class="download-btn" onclick="telechargerPDF('${idReponse}')">télécharger en PDF</button>
-        `;
+if (!res.ok || data.error) {
+  chatBox.innerHTML += `<p style="color:red;">Erreur serveur : ${data.error || "inconnue"}</p>`;
+} else {
+  const idReponse = "reponse-" + Date.now();
+  chatBox.innerHTML += `
+    <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
+    <button class="download-btn" onclick="telechargerPDF('${idReponse}')">&#128196; T&eacute;l&eacute;charger en PDF</button>
+  `;
+}
       } catch (err) {
         document.getElementById("loading").remove();
         chatBox.innerHTML += `<p style="color:red;">Erreur : impossible de contacter le serveur</p>`;
