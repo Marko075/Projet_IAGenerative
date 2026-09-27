@@ -20,5 +20,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # Pas de --content-type forcé : le type MIME est déduit de l'extension (.html, .css, .js).
+      # Forcer text/html ferait ignorer les feuilles de style et les scripts par le navigateur.
       - name: Sync to S3
-        run: aws s3 sync frontend/ s3://${{ secrets.S3_BUCKET }} --delete --content-type "text/html; charset=utf-8"
+        run: aws s3 sync frontend/ s3://${{ secrets.S3_BUCKET }} --delete

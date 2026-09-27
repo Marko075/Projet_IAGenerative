@@ -2,160 +2,152 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>Mon Chatbot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Transformers</title>
+  <meta name="description" content="Transformers, l'assistant IA de l'entreprise." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M10 11h12M16 11v11' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
 
-  <!-- Librairie pour générer des PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Applique le thème avant l'affichage pour éviter un flash clair/sombre -->
+  <script>
+    try {
+      const theme = localStorage.getItem("transformers.theme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    } catch {}
+  </script>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 50px auto;
-      padding: 20px;
-    }
-    #chatBox {
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      padding: 15px;
-      min-height: 200px;
-      margin-bottom: 15px;
-      background: #f9f9f9;
-    }
-    #chatBox img {
-      max-width: 200px;
-      display: block;
-      margin: 8px 0;
-      border-radius: 6px;
-    }
-    #userInput {
-      width: 55%;
-      padding: 10px;
-    }
-    button {
-      padding: 10px 15px;
-      margin-left: 5px;
-    }
-    .download-btn {
-      font-size: 12px;
-      padding: 4px 8px;
-      margin-top: 4px;
-      background: #eee;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-  </style>
+  <link rel="stylesheet" href="css/app.css" />
+
+  <!-- Markdown, nettoyage anti-XSS, coloration du code, export PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <h1>Mon Chatbot</h1>
 
-  <div id="chatBox"></div>
+  <!-- ============ Écran de connexion ============ -->
+  <section id="login-screen" class="login" hidden>
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="logo" data-logo></span>
+        <h1>Bienvenue sur Transformers</h1>
+        <p>L'assistant IA de l'entreprise</p>
+      </div>
 
-  <!-- Zone pour joindre une image PNG ou un PowerPoint -->
-  <input type="file" id="fichierInput" accept=".png,.pptx" />
-  <br /><br />
+      <form id="login-form" novalidate>
+        <p id="login-error" class="form-error" role="alert" hidden></p>
+        <div class="field">
+          <label for="login-email">Adresse email</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="login-password">Mot de passe</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button id="login-submit" type="submit" class="btn btn-primary btn-block">Se connecter</button>
+      </form>
 
-  <!-- Zone pour écrire un message -->
-  <input type="text" id="userInput" placeholder="Pose ta question..." />
-  <button onclick="envoyerMessage()">Envoyer</button>
+      <div class="divider">ou</div>
+      <button id="guest-btn" type="button" class="btn btn-secondary btn-block">Continuer en tant qu'invité</button>
+      <p class="login-note">En mode invité, vos conversations ne sont pas enregistrées.</p>
+    </div>
+  </section>
 
-  <script>
-    let fichierEnAttente = null;      // base64 pur (sans préfixe)
-    let typeFichierEnAttente = null;  // "png" ou "pptx"
+  <!-- ============ Application ============ -->
+  <div id="app" class="app" hidden>
+    <aside class="sidebar" id="sidebar" aria-label="Conversations">
+      <div class="sidebar-top">
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-name"><span class="logo" data-logo></span>Transformers</span>
+          <button id="sidebar-close" class="icon-btn" type="button" aria-label="Fermer le panneau latéral" data-icon="sidebar"></button>
+        </div>
+        <button id="new-chat" class="new-chat" type="button"><span data-icon="plus"></span>Nouvelle conversation</button>
+        <label class="search" id="search-box">
+          <span data-icon="search"></span>
+          <span class="sr-only">Rechercher une conversation</span>
+          <input id="search-input" type="search" placeholder="Rechercher" autocomplete="off" />
+        </label>
+      </div>
 
-    // ---------- Sélection d'un fichier (image ou PowerPoint) ----------
-    document.getElementById("fichierInput").addEventListener("change", function (e) {
-      const fichier = e.target.files[0];
-      if (!fichier) return;
+      <div id="guest-card" class="guest-card" hidden>
+        <p><strong>Mode invité</strong>Vos conversations ne sont pas enregistrées. Connectez-vous pour retrouver votre historique.</p>
+        <button id="guest-login" class="btn btn-primary btn-block" type="button">Se connecter</button>
+      </div>
 
-      const chatBox = document.getElementById("chatBox");
-      const extension = fichier.name.split(".").pop().toLowerCase();
+      <nav id="conv-list" class="conv-list"></nav>
 
-      const lecteur = new FileReader();
-      lecteur.onload = function (event) {
-        const base64Complet = event.target.result;
-        const base64Pur = base64Complet.split(",")[1];
+      <div class="sidebar-bottom">
+        <button id="user-btn" class="user-btn" type="button" aria-haspopup="menu">
+          <span id="user-avatar" class="avatar"></span>
+          <span class="user-meta">
+            <span id="user-name" class="user-name"></span>
+            <span id="user-sub" class="user-sub"></span>
+          </span>
+        </button>
+      </div>
+    </aside>
+    <div class="overlay" id="overlay"></div>
 
-        if (extension === "png") {
-          chatBox.innerHTML += `<p><strong>Toi (image) :</strong></p><img src="${base64Complet}" />`;
-          fichierEnAttente = base64Pur;
-          typeFichierEnAttente = "png";
-        } else if (extension === "pptx") {
-          chatBox.innerHTML += `<p><strong>Toi :</strong> &#128206; Fichier PowerPoint joint (${fichier.name})</p>`;
-          fichierEnAttente = base64Pur;
-          typeFichierEnAttente = "pptx";
-        }
-        chatBox.scrollTop = chatBox.scrollHeight;
-      };
-      lecteur.readAsDataURL(fichier);
-    });
+    <main class="main">
+      <header class="topbar" id="topbar">
+        <button id="sidebar-open" class="icon-btn topbar-open" type="button" aria-label="Ouvrir le panneau latéral" data-icon="sidebar"></button>
+        <h1 id="conv-title" class="topbar-title"></h1>
+        <!-- Bandeau de transparence : l'utilisateur sait qu'il parle à une IA (AI Act, art. 50) -->
+        <button id="ai-badge" class="ai-badge" type="button" title="À propos de l'assistant">
+          <span data-icon="shield"></span>
+          <span class="ai-badge-strong">IA</span>
+          <span id="ai-badge-detail" class="ai-badge-detail"></span>
+        </button>
+      </header>
 
-    // ---------- Envoyer un message (texte seul, ou avec fichier joint) ----------
-    async function envoyerMessage() {
-      const input = document.getElementById("userInput");
-      const chatBox = document.getElementById("chatBox");
-      const message = input.value.trim();
+      <div id="thread" class="thread" aria-live="polite"></div>
 
-      if (!message && !fichierEnAttente) return;
+      <div class="composer-wrap">
+        <form id="composer" class="composer">
+          <div id="composer-attachment" class="composer-attachment" hidden></div>
+          <label for="composer-input" class="sr-only">Message</label>
+          <textarea id="composer-input" rows="1" placeholder="Écrivez votre message à Transformers…"></textarea>
+          <div class="composer-bar">
+            <button id="attach-btn" class="icon-btn" type="button" aria-label="Joindre un PowerPoint (.pptx)" title="Joindre un PowerPoint (.pptx)" data-icon="paperclip"></button>
+            <input id="file-input" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden />
+            <button id="send-btn" class="send-btn" type="submit" aria-label="Envoyer" data-icon="arrowUp"></button>
+          </div>
+        </form>
+        <p class="composer-hint">Vous discutez avec une IA. Transformers peut se tromper : vérifiez les informations importantes.</p>
+      </div>
+    </main>
+  </div>
 
-      if (message) {
-        chatBox.innerHTML += `<p><strong>Toi :</strong> ${message}</p>`;
-      }
-      input.value = "";
-      chatBox.innerHTML += `<p id="loading"><em>Le chatbot r&eacute;fl&eacute;chit...</em></p>`;
+  <!-- ============ Dialogues ============ -->
+  <dialog id="confirm-dialog">
+    <form method="dialog">
+      <div class="dialog-body">
+        <h3 id="confirm-title"></h3>
+        <p id="confirm-message"></p>
+      </div>
+      <div class="dialog-actions">
+        <button value="cancel" class="btn btn-secondary">Annuler</button>
+        <button value="ok" id="confirm-ok" class="btn btn-danger"></button>
+      </div>
+    </form>
+  </dialog>
 
-      try {
-        const corps = { message };
-        if (typeFichierEnAttente === "png") {
-          corps.image = fichierEnAttente;
-        } else if (typeFichierEnAttente === "pptx") {
-          corps.document = fichierEnAttente;
-          corps.documentType = "pptx";
-        }
+  <dialog id="about-dialog">
+    <form method="dialog">
+      <div class="dialog-body">
+        <h3>À propos de Transformers</h3>
+        <p>Vous échangez avec un <strong>système d'intelligence artificielle</strong>, et non avec une personne. Ses réponses sont générées automatiquement et peuvent contenir des erreurs.</p>
+        <ul class="info-list" id="about-list"></ul>
+        <p id="about-storage"></p>
+      </div>
+      <div class="dialog-actions">
+        <button value="close" class="btn btn-secondary">Fermer</button>
+      </div>
+    </form>
+  </dialog>
 
-        const res = await fetch("http://3.120.6.19:3000/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(corps)
-        });
-
-        const data = await res.json();
-        document.getElementById("loading").remove();
-
-        const idReponse = "reponse-" + Date.now();
-        chatBox.innerHTML += `
-          <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
-          <button class="download-btn" onclick="telechargerPDF('${idReponse}')">télécharger en PDF</button>
-        `;
-      } catch (err) {
-        document.getElementById("loading").remove();
-        chatBox.innerHTML += `<p style="color:red;">Erreur : impossible de contacter le serveur</p>`;
-      }
-
-      fichierEnAttente = null;
-      typeFichierEnAttente = null;
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    // ---------- Télécharger une réponse en PDF ----------
-    function telechargerPDF(idReponse) {
-      const texte = document.getElementById(idReponse).innerText.replace("Chatbot :", "").trim();
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      doc.setFontSize(12);
-      const lignes = doc.splitTextToSize(texte, 180);
-      doc.text(lignes, 10, 10);
-
-      doc.save("reponse-chatbot.pdf");
-    }
-
-    // Permet d'envoyer avec la touche Entrée
-    document.getElementById("userInput").addEventListener("keypress", function (e) {
-      if (e.key === "Enter") envoyerMessage();
-    });
-  </script>
+  <div id="popover" class="popover" role="menu" hidden></div>
+  <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

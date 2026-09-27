@@ -1,20 +1,20 @@
 import { askBedrock, resumerPowerPoint } from "../services/BedrockService.js";
+import { signalDeconnexion } from "../utils/signalDeconnexion.js";
+import { validerRequeteChat, validerRequetePowerPoint } from "../validation.js";
+
+// Routes du mode invité : rien n'est enregistré, l'historique est fourni par le client.
+// Express 5 transmet automatiquement les erreurs des handlers async au middleware d'erreur (server.js).
+
+function envoyerReponse(res, { texte, tronquee, usage }) {
+  res.json({ response: texte, truncated: tronquee, usage });
+}
 
 export async function handleChat(req, res) {
-  try {
-    const { message, image, document, documentType } = req.body;
+  const { message, historique } = validerRequeteChat(req.body);
+  envoyerReponse(res, await askBedrock(historique, message, { signal: signalDeconnexion(res) }));
+}
 
-    let reponse;
-
-    if (documentType === "pptx" && document) {
-      reponse = await resumerPowerPoint(document, message);
-    } else {
-      reponse = await askBedrock(message, image || null);
-    }
-
-    res.json({ response: reponse });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+export async function handleSummarizePptx(req, res) {
+  const { document, message } = validerRequetePowerPoint(req.body);
+  envoyerReponse(res, await resumerPowerPoint(document, message, { signal: signalDeconnexion(res) }));
 }
