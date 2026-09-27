@@ -1,3 +1,5 @@
+// Service d'authentification : comptes, mots de passe, sessions et limitation des tentatives.
+// Uniquement des modules natifs de Node (crypto) : aucune dépendance externe à maintenir.
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
@@ -10,6 +12,9 @@ const LONGUEUR_HASH = 64;
 const JOUR_MS = 24 * 60 * 60 * 1000;
 
 // ---------- Mots de passe ----------
+// scrypt + sel aléatoire propre à chaque compte : deux mots de passe identiques donnent des hash différents,
+// et le calcul volontairement coûteux ralentit les attaques par force brute.
+// Format stocké : "scrypt$<sel>$<hash>". La comparaison se fait en temps constant (timingSafeEqual).
 export async function hacherMotDePasse(motDePasse) {
   const sel = crypto.randomBytes(16);
   const hash = await scrypt(motDePasse, sel, LONGUEUR_HASH);
@@ -28,10 +33,12 @@ async function verifierMotDePasse(motDePasse, stocke) {
 const HASH_FACTICE = await hacherMotDePasse(crypto.randomUUID());
 
 // ---------- Utilisateurs ----------
+// Version renvoyée au client : jamais le hash du mot de passe.
 export function utilisateurPublic(user) {
   return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
+// Création d'un compte (utilisée par le script create-admin). L'email sert d'identifiant unique.
 export async function creerUtilisateur({ email, motDePasse, nom, role = "user" }) {
   const emailNormalise = email.trim().toLowerCase();
   if (db.users.some((u) => u.email === emailNormalise)) {
@@ -80,13 +87,17 @@ export async function amorcerAdmin() {
 }
 
 // ---------- Sessions ----------
+// Une session = un jeton aléatoire remis au client, valable SESSION_TTL_DAYS jours.
 const hacherJeton = (jeton) => crypto.createHash("sha256").update(jeton).digest("hex");
 
+// Nettoyage des sessions expirées (fait à chaque connexion pour que le fichier ne grossisse pas).
 function purgerSessionsExpirees() {
   const maintenant = Date.now();
   db.sessions = db.sessions.filter((s) => new Date(s.expiresAt).getTime() > maintenant);
 }
 
+// Connexion : même message d'erreur que l'email soit inconnu ou le mot de passe faux
+// (on ne révèle pas quels comptes existent), puis création d'une session.
 export async function connecter(email, motDePasse) {
   const user = db.users.find((u) => u.email === email.trim().toLowerCase());
   const valide = await verifierMotDePasse(motDePasse, user?.passwordHash ?? HASH_FACTICE);
@@ -107,6 +118,7 @@ export async function connecter(email, motDePasse) {
   return { jeton, user: utilisateurPublic(user) };
 }
 
+// Retrouve l'utilisateur d'un jeton (appelé par le middleware à chaque requête authentifiée).
 export function utilisateurDepuisJeton(jeton) {
   const hash = hacherJeton(jeton);
   const session = db.sessions.find((s) => s.tokenHash === hash);
@@ -121,6 +133,8 @@ export async function deconnecter(jeton) {
 }
 
 // ---------- Limitation des tentatives de connexion (en mémoire, par IP) ----------
+// Fenêtre d'une minute par adresse IP : au-delà de LOGIN_ATTEMPTS_PER_MINUTE essais, réponse 429.
+// Freine les tentatives de deviner un mot de passe. Remis à zéro au redémarrage du serveur.
 const tentatives = new Map();
 
 export function verifierLimiteConnexion(ip) {

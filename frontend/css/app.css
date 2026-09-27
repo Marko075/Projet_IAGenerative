@@ -4,6 +4,11 @@
    thème sombre via data-theme="dark" ou la préférence système.
    ============================================================ */
 
+/* ---------- Palette (variables) ----------
+   Toutes les couleurs passent par ces variables : changer de thème revient à changer leurs valeurs.
+   Thème clair ci-dessous ; le thème sombre est défini deux fois plus bas :
+   1) selon la préférence du système (sauf si l'utilisateur a forcé le clair),
+   2) quand l'utilisateur a choisi « Sombre » (data-theme="dark"), quelle que soit la préférence système. */
 :root {
   --bg: #ffffff;
   --bg-sidebar: #f7f7f5;
@@ -201,6 +206,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   background: var(--bg-sidebar); border-right: 1px solid var(--border);
   transition: margin-left 0.2s ease, transform 0.2s ease;
 }
+/* Sur ordinateur, la barre latérale peut être repliée (glisse hors de l'écran vers la gauche). */
 .app.sidebar-collapsed .sidebar { margin-left: calc(-1 * var(--sidebar-width)); }
 
 .sidebar-top { padding: 12px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
@@ -400,6 +406,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .code-block pre { margin: 0; padding: 14px; overflow-x: auto; }
 .code-block code { font-family: var(--font-mono); font-size: 13px; line-height: 1.55; background: none; }
 
+/* Couleurs de coloration syntaxique (classes posées par highlight.js), reliées à la palette
+   pour suivre le thème clair / sombre sans charger de feuille de style externe. */
 .hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-doctag { color: var(--hl-keyword); }
 .hljs-string, .hljs-regexp, .hljs-addition, .hljs-template-tag { color: var(--hl-string); }
 .hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: var(--hl-number); }
@@ -480,7 +488,9 @@ dialog::backdrop { background: var(--overlay); }
   font-size: 14px; box-shadow: var(--shadow);
 }
 
-/* ---------- Mobile ---------- */
+/* ---------- Mobile ----------
+   En dessous de 800 px : la barre latérale devient un tiroir par-dessus le contenu (ouvert par le bouton
+   de l'en-tête), le détail du bandeau IA est masqué et les marges sont réduites. */
 @media (max-width: 800px) {
   .sidebar {
     position: fixed; inset: 0 auto 0 0; z-index: 40; width: min(86vw, var(--sidebar-width));

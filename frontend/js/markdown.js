@@ -7,6 +7,7 @@ import { copier, el, icone } from "./dom.js";
 const librairiesDisponibles = () =>
   typeof window.marked !== "undefined" && typeof window.DOMPurify !== "undefined";
 
+// Options de marked (une seule fois) : Markdown GitHub (tableaux…) et retours à la ligne conservés.
 let configure = false;
 function configurer() {
   if (configure) return;
@@ -14,6 +15,7 @@ function configurer() {
   configure = true;
 }
 
+// Bloc de code : coloration syntaxique + en-tête avec le nom du langage et un bouton « Copier ».
 function enrichirBlocCode(pre) {
   const code = pre.querySelector("code");
   if (!code) return;
@@ -36,6 +38,9 @@ function enrichirBlocCode(pre) {
   bloc.append(pre);
 }
 
+// Transforme le texte Markdown d'une réponse en élément HTML prêt à afficher.
+// Le HTML produit est toujours nettoyé par DOMPurify avant insertion : une réponse du modèle
+// contenant du HTML ou du script ne peut pas s'exécuter dans la page. Les liens s'ouvrent dans un nouvel onglet.
 export function rendreMarkdown(texte) {
   const conteneur = el("div", { class: "markdown" });
 

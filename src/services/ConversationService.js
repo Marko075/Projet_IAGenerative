@@ -1,3 +1,7 @@
+// Service des conversations enregistrées (utilisateurs connectés).
+// Chaque fonction reçoit l'id de l'utilisateur : une conversation n'est jamais accessible
+// par quelqu'un d'autre que son propriétaire. L'historique est relu côté serveur,
+// le client n'envoie que le nouveau message.
 import crypto from "node:crypto";
 import { AppError } from "../errors.js";
 import { db, sauvegarder } from "../store/JsonStore.js";
@@ -10,8 +14,10 @@ const LONGUEUR_TITRE_AUTO = 60;
 // empêche deux envois simultanés de casser l'alternance user / assistant.
 const enCours = new Set();
 
+// ---------- Utilitaires internes ----------
 const maintenant = () => new Date().toISOString();
 
+// Version allégée (sans les messages) utilisée pour la liste de la barre latérale.
 function resume(conversation) {
   const { id, title, createdAt, updatedAt } = conversation;
   return { id, title, createdAt, updatedAt };
@@ -24,6 +30,7 @@ function trouver(userId, id) {
   return conversation;
 }
 
+// Titre généré à partir du premier message (sur une ligne, 60 caractères maximum).
 function titreAutomatique(texte) {
   const ligne = texte.replace(/\s+/g, " ").trim();
   return ligne.length > LONGUEUR_TITRE_AUTO ? `${ligne.slice(0, LONGUEUR_TITRE_AUTO - 1)}…` : ligne;
@@ -33,10 +40,12 @@ function nouveauMessage(role, content, extra = {}) {
   return { id: crypto.randomUUID(), role, content, createdAt: maintenant(), ...extra };
 }
 
+// Messages stockés → format attendu par le modèle, limité aux derniers échanges.
 function historiquePourModele(messages) {
   return bornerHistorique(messages.map(({ role, content }) => ({ role, content })));
 }
 
+// Exécute une action en réservant la conversation (409 si une réponse est déjà en cours).
 async function avecVerrou(conversationId, action) {
   if (enCours.has(conversationId)) {
     throw new AppError(409, "BUSY", "Une réponse est déjà en cours dans cette conversation.");
@@ -58,6 +67,8 @@ export function lister(userId) {
     .map(resume);
 }
 
+// La création rattache la conversation à l'utilisateur ; lecture, renommage et suppression
+// passent par trouver(), qui vérifie qu'il en est bien le propriétaire.
 export async function creer(userId) {
   const date = maintenant();
   const conversation = { id: crypto.randomUUID(), userId, title: "Nouvelle conversation", createdAt: date, updatedAt: date, messages: [] };

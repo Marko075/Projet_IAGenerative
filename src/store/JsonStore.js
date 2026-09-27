@@ -12,6 +12,8 @@ import { config } from "../config.js";
 const fichier = path.resolve(config.stockage.fichier);
 const VIDE = { users: [], sessions: [], conversations: [] };
 
+// Lecture au démarrage : fichier absent = base vide (premier lancement), fichier illisible = arrêt
+// (mieux vaut refuser de démarrer que repartir d'une base vide et écraser les données).
 async function charger() {
   try {
     const contenu = JSON.parse(await fs.readFile(fichier, "utf8"));
@@ -22,8 +24,11 @@ async function charger() {
   }
 }
 
+// Données partagées par tous les services : { users, sessions, conversations }.
 export const db = await charger();
 
+// À appeler après chaque modification de db. L'état est figé au moment de l'appel (instantané),
+// puis écrit à la suite des écritures précédentes grâce à la chaîne de promesses fileEcriture.
 let fileEcriture = Promise.resolve();
 
 export function sauvegarder() {

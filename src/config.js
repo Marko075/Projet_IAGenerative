@@ -1,8 +1,11 @@
 import "dotenv/config";
 
+// Configuration centralisée du backend.
 // Toute la configuration passe par des variables d'environnement (.env).
 // Les valeurs par défaut permettent de lancer le projet sans rien ajouter au .env existant.
+// Changer de modèle, de limites ou de prompt ne demande donc aucune modification du code.
 
+// Lecture d'une variable numérique, avec valeur par défaut si absente ou invalide.
 function entier(nom, defaut) {
   const valeur = Number.parseInt(process.env[nom], 10);
   return Number.isFinite(valeur) ? valeur : defaut;
@@ -13,6 +16,8 @@ function decimal(nom, defaut) {
   return Number.isFinite(valeur) ? valeur : defaut;
 }
 
+// Prompt système : consignes envoyées au modèle avant chaque conversation (rôle, ton, limites).
+// Remplaçable par la variable SYSTEM_PROMPT.
 const PROMPT_SYSTEME_PAR_DEFAUT = `Tu es Transformers, l'assistant conversationnel interne de l'entreprise.
 Tu réponds en français, de façon claire, précise et structurée.
 Si tu ne connais pas la réponse ou si une information te manque, dis-le plutôt que d'inventer.
@@ -32,6 +37,9 @@ const REGIONS = {
 // Documents acceptés en pièce jointe (extension -> libellé), lus par officeparser.
 const FORMATS_DOCUMENT = { pdf: "PDF", docx: "Word", xlsx: "Excel", pptx: "PowerPoint" };
 
+// ---------- Configuration exportée ----------
+// Regroupée par thème : identité de l'assistant, stockage, authentification,
+// modèle, appels Bedrock et limites (taille des messages, de l'historique, des documents).
 export const config = {
   port: entier("PORT", 3000),
   awsRegion: process.env.AWS_REGION,

@@ -1,3 +1,6 @@
+// Middlewares d'authentification : lisent le jeton « Authorization: Bearer <jeton> »
+// et retrouvent l'utilisateur correspondant (voir AuthService). Pas de cookies :
+// le frontend (S3) et le backend (EC2) sont sur des origines différentes.
 import { AppError } from "../errors.js";
 import { utilisateurDepuisJeton } from "../services/AuthService.js";
 
@@ -15,6 +18,7 @@ export function optionalAuth(req, res, next) {
   next();
 }
 
+// Même lecture, mais refuse la requête (401) si aucun utilisateur valide n'est trouvé.
 export function requireAuth(req, res, next) {
   optionalAuth(req, res, () => {
     if (!req.user) return next(new AppError(401, "UNAUTHENTICATED", "Session expirée ou invalide. Reconnecte-toi."));

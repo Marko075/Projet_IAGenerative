@@ -1,3 +1,7 @@
+// Validation des requêtes entrantes.
+// Chaque fonction exportée vérifie le corps d'une requête et renvoie des données propres
+// (texte nettoyé, historique borné…) ou lève une erreur 400 avec un message explicite.
+// Les contrôleurs n'utilisent jamais req.body directement.
 import { config } from "./config.js";
 import { AppError } from "./errors.js";
 
@@ -8,6 +12,8 @@ function erreurRequete(message) {
   return new AppError(400, "INVALID_REQUEST", message);
 }
 
+// ---------- Briques de base ----------
+// Champ texte : type chaîne, espaces retirés, obligatoire ou non, longueur maximale.
 function validerTexte(valeur, nom, { obligatoire, longueurMax = longueurMessage }) {
   if (valeur === undefined || valeur === null || valeur === "") {
     if (obligatoire) throw erreurRequete(`Le champ "${nom}" est obligatoire.`);
@@ -22,6 +28,7 @@ function validerTexte(valeur, nom, { obligatoire, longueurMax = longueurMessage 
   return texte;
 }
 
+// ---------- Conversation (mode invité) ----------
 // L'historique alterne user / assistant, commence par user et finit par assistant,
 // pour que le nouveau message utilisateur puisse être ajouté à la suite.
 function validerHistorique(historique) {
@@ -54,6 +61,7 @@ export function bornerHistorique(messages) {
   return limitePaire > 0 ? messages.slice(-limitePaire) : [];
 }
 
+// POST /api/chat : message obligatoire + historique facultatif.
 export function validerRequeteChat(corps) {
   return {
     message: validerTexte(corps?.message, "message", { obligatoire: true }),
@@ -61,6 +69,8 @@ export function validerRequeteChat(corps) {
   };
 }
 
+// ---------- Documents joints ----------
+// Contenu du fichier : chaîne base64 non vide (la taille est déjà bornée par express.json).
 function validerDocument(document) {
   if (typeof document !== "string" || !document) {
     throw erreurRequete(`Le champ "document" (fichier encodé en base64) est obligatoire.`);
@@ -97,6 +107,8 @@ export function validerRequeteMessage(corps) {
   return { message: validerTexte(corps?.message, "message", { obligatoire: true }) };
 }
 
+// ---------- Authentification et conversations ----------
+// Connexion : email au format valide, mot de passe présent (longueur bornée contre les abus).
 export function validerIdentifiants(corps) {
   const email = validerTexte(corps?.email, "email", { obligatoire: true, longueurMax: 254 });
   if (!/^[^\s@]+@[^\s@]+$/.test(email)) throw erreurRequete("Adresse email invalide.");
@@ -107,6 +119,7 @@ export function validerIdentifiants(corps) {
   return { email, motDePasse: corps.password };
 }
 
+// Renommage d'une conversation.
 export function validerTitre(corps) {
   return validerTexte(corps?.title, "title", { obligatoire: true, longueurMax: 120 });
 }

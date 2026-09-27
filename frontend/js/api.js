@@ -1,6 +1,10 @@
+// Client de l'API backend : le seul module du frontend qui fait des appels réseau.
+// Le navigateur n'appelle jamais le modèle directement : tout passe par notre backend,
+// qui est le seul à détenir les accès AWS.
 import { API_URL } from "./config.js";
 
 // ---------- Stockage local (protégé : localStorage peut être indisponible) ----------
+// Navigation privée ou stockage bloqué : on renvoie null au lieu de planter.
 export const stockage = {
   lire(cle) {
     try { return localStorage.getItem(cle); } catch { return null; }
@@ -13,12 +17,14 @@ export const stockage = {
   },
 };
 
+// Jeton de session reçu à la connexion, conservé entre deux visites.
 const CLE_JETON = "transformers.token";
 export const jeton = {
   get: () => stockage.lire(CLE_JETON),
   set: (valeur) => stockage.ecrire(CLE_JETON, valeur),
 };
 
+// Erreur renvoyée par l'API : status HTTP (0 = serveur injoignable), code stable et message lisible.
 export class ApiError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -27,11 +33,15 @@ export class ApiError extends Error {
   }
 }
 
+// Permet à app.js de réagir (retour à l'écran de connexion) quand le serveur refuse le jeton.
 let surSessionExpiree = () => {};
 export function quandSessionExpiree(callback) {
   surSessionExpiree = callback;
 }
 
+// ---------- Requête générique ----------
+// Ajoute le JSON et le jeton, convertit les erreurs réseau et HTTP en ApiError.
+// Une annulation volontaire (bouton « Stop ») est relancée telle quelle (AbortError).
 async function requete(chemin, { method = "GET", body, signal } = {}) {
   const headers = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -63,6 +73,7 @@ async function requete(chemin, { method = "GET", body, signal } = {}) {
 
 const enc = encodeURIComponent;
 
+// ---------- Points d'entrée de l'API (un par route du backend) ----------
 export const api = {
   info: () => requete("/info"),
 

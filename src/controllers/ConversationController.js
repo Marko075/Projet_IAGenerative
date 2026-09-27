@@ -1,7 +1,11 @@
+// Contrôleurs des conversations enregistrées (utilisateur connecté).
+// req.user est rempli par le middleware requireAuth ; chaque appel au service passe son id,
+// ce qui garantit qu'un utilisateur n'agit que sur ses propres conversations.
 import * as conversations from "../services/ConversationService.js";
 import { signalDeconnexion } from "../utils/signalDeconnexion.js";
 import { validerRequeteMessage, validerTitre } from "../validation.js";
 
+// ---------- Gestion des conversations (liste, création, lecture, renommage, suppression) ----------
 export function handleList(req, res) {
   res.json({ conversations: conversations.lister(req.user.id) });
 }
@@ -24,6 +28,8 @@ export async function handleDelete(req, res) {
   res.status(204).end();
 }
 
+// ---------- Échanges avec le modèle ----------
+// Le signal annule l'appel au modèle si le client ferme la connexion (bouton « Stop »).
 export async function handleSendMessage(req, res) {
   const requete = validerRequeteMessage(req.body);
   const signal = signalDeconnexion(res);

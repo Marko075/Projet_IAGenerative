@@ -1,4 +1,7 @@
-// En local (frontend servi sur localhost), on vise le backend local ; sinon le serveur EC2.
+// Configuration du frontend.
+
+// Adresse de l'API. En local (frontend servi sur localhost), on vise le backend local ; sinon le serveur EC2.
+// window.TRANSFORMERS_API_URL permet de la surcharger sans modifier ce fichier.
 const enLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
 
 export const API_URL = window.TRANSFORMERS_API_URL

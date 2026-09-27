@@ -1,3 +1,4 @@
+// Routes des conversations enregistrées (utilisateur connecté uniquement).
 import express from "express";
 import {
   handleCreate,
@@ -15,11 +16,14 @@ import { requireAuth } from "../middleware/auth.js";
 const router = express.Router();
 router.use("/conversations", requireAuth);
 
+// Gestion de la liste : lister, créer, lire (avec messages), renommer, supprimer.
 router.get("/conversations", handleList);
 router.post("/conversations", handleCreate);
 router.get("/conversations/:id", handleGet);
 router.patch("/conversations/:id", handleRename);
 router.delete("/conversations/:id", handleDelete);
+
+// Échanges avec le modèle : nouveau message (texte ou document) et régénération de la dernière réponse.
 router.post("/conversations/:id/messages", handleSendMessage);
 router.post("/conversations/:id/regenerate", handleRegenerate);
 

@@ -1,4 +1,7 @@
+// Erreurs de l'application.
+
 // Erreur applicative : porte le code HTTP et un message affichable côté client.
+// Toute AppError levée dans une route est transformée en réponse JSON par le middleware d'erreur (server.js).
 export class AppError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -8,6 +11,8 @@ export class AppError extends Error {
 }
 
 // Traduit les erreurs du SDK Bedrock en erreurs compréhensibles pour l'utilisateur.
+// Codes HTTP choisis : 504 délai dépassé, 429 quota, 503 modèle indisponible (temporaire),
+// 502 problème de configuration côté AWS (droits, identifiant du modèle, requête refusée).
 export function traduireErreurBedrock(err) {
   switch (err.name) {
     case "TimeoutError":

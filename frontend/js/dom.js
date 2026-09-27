@@ -1,6 +1,8 @@
 // Petits utilitaires DOM. Tout texte venant de l'utilisateur ou du modèle passe par textContent
 // (jamais innerHTML), sauf le Markdown qui est nettoyé par DOMPurify (voir markdown.js).
 
+// Crée un élément HTML en une ligne : el("button", { class, text, onclick }, ...enfants).
+// "text" passe par textContent (pas d'injection possible), "onXxx" ajoute un écouteur d'événement.
 export function el(tag, props = {}, ...enfants) {
   const noeud = document.createElement(tag);
   for (const [cle, valeur] of Object.entries(props)) {
@@ -56,6 +58,7 @@ export function icone(nom) {
   return span;
 }
 
+// Logo Transformers : carré arrondi à la couleur d'accent avec un « T » (s'adapte au thème).
 const LOGO_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--accent)"/><path d="M10 11h12M16 11v11" stroke="var(--accent-contrast)" stroke-width="3" stroke-linecap="round"/></svg>`;
 
 export function logo() {

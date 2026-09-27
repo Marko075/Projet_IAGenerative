@@ -1,3 +1,7 @@
+// Contrôleur principal de l'interface Transformers.
+// Tient l'état de l'application (mode connecté / invité, conversations, messages en cours),
+// réagit aux actions de l'utilisateur et redessine les zones concernées (liste, fil, zone de saisie).
+// Organisation : session → panneau latéral → menu et bandeau → fil → conversations → envoi → saisie → démarrage.
 import { api, jeton, quandSessionExpiree, stockage } from "./api.js";
 import { FORMATS_DOCUMENT, NOM_ASSISTANT, TAILLE_MAX_DOCUMENT } from "./config.js";
 import { copier, el, hydraterIcones, icone, logo } from "./dom.js";
@@ -5,6 +9,7 @@ import { rendreMarkdown } from "./markdown.js";
 import { appliquerTheme, themeActuel } from "./theme.js";
 import { confirmer, fermerMenu, itemMenu, menuOuvertPour, ouvrirMenu, toast } from "./ui.js";
 
+// Références vers les éléments fixes de index.html, récupérées une seule fois.
 const $ = (id) => document.getElementById(id);
 const dom = {
   login: $("login-screen"),
@@ -44,10 +49,12 @@ const dom = {
   aboutStorage: $("about-storage"),
 };
 
+// Clés du stockage navigateur : mode invité mémorisé, panneau latéral replié.
 const CLE_MODE = "transformers.mode";
 const CLE_SIDEBAR = "transformers.sidebar";
 const LONGUEUR_TITRE_AUTO = 60;
 
+// État unique de l'application : toutes les fonctions de rendu lisent cet objet.
 const etat = {
   mode: null,          // "user" (connecté) ou "guest" (invité)
   user: null,
@@ -64,11 +71,14 @@ const etat = {
   renommage: null,     // id de la conversation en cours de renommage
 };
 
+// Identifiants temporaires pour les messages pas encore enregistrés (et mode invité),
+// détection mobile, et cache du rendu Markdown pour ne pas re-rendre chaque message à chaque affichage.
 let compteurLocal = 0;
 const idLocal = () => `local-${Date.now()}-${++compteurLocal}`;
 const estMobile = () => window.matchMedia("(max-width: 800px)").matches;
 const rendus = new WeakMap(); // message -> contenu Markdown déjà rendu
 
+// Titre de conversation tiré du premier message (même règle que côté serveur).
 function titreAuto(texte) {
   const ligne = texte.replace(/\s+/g, " ").trim();
   return ligne.length > LONGUEUR_TITRE_AUTO ? `${ligne.slice(0, LONGUEUR_TITRE_AUTO - 1)}…` : ligne;
@@ -78,6 +88,7 @@ function titreAuto(texte) {
 // Session : connexion, invité, déconnexion
 // ============================================================
 
+// Remet l'état à zéro (changement de compte, déconnexion) en annulant une génération en cours.
 function reinitialiserEtat() {
   arreter(true);
   Object.assign(etat, {
@@ -88,6 +99,7 @@ function reinitialiserEtat() {
   dom.composerInput.value = "";
 }
 
+// Affiche l'écran de connexion, avec un message d'erreur éventuel (session expirée, serveur injoignable).
 function montrerConnexion(message = null) {
   fermerMenu();
   dom.app.hidden = true;
@@ -99,6 +111,7 @@ function montrerConnexion(message = null) {
   document.title = NOM_ASSISTANT;
 }
 
+// Affiche l'application et démarre sur une conversation vierge.
 function montrerApplication() {
   dom.login.hidden = true;
   dom.app.hidden = false;
@@ -106,6 +119,7 @@ function montrerApplication() {
   nouvelleConversation({ focus: !estMobile() });
 }
 
+// Mode connecté : charge la liste des conversations et rouvre celle présente dans l'URL (#c/<id>).
 async function entrerUtilisateur(user) {
   // Lu avant montrerApplication(), qui réinitialise l'URL.
   const idDansUrl = location.hash.match(/^#c\/(.+)$/)?.[1];
@@ -124,6 +138,7 @@ async function entrerUtilisateur(user) {
   }
 }
 
+// Mode invité : rien n'est enregistré ; le mode est mémorisé pour ne pas repasser par la connexion au rechargement.
 function entrerInvite() {
   etat.mode = "guest";
   etat.user = null;
@@ -131,6 +146,7 @@ function entrerInvite() {
   montrerApplication();
 }
 
+// Invité → écran de connexion, avec confirmation si une conversation (non enregistrée) serait perdue.
 async function allerVersConnexion() {
   if (etat.mode === "guest" && etat.messages.length) {
     const ok = await confirmer({
@@ -145,6 +161,7 @@ async function allerVersConnexion() {
   montrerConnexion();
 }
 
+// Déconnexion : la session est supprimée côté serveur et le jeton effacé du navigateur.
 async function deconnecter() {
   api.deconnexion().catch(() => {});
   jeton.set(null);
@@ -153,6 +170,7 @@ async function deconnecter() {
   montrerConnexion();
 }
 
+// Jeton refusé par le serveur pendant l'utilisation (session expirée) : retour à la connexion.
 quandSessionExpiree(() => {
   jeton.set(null);
   if (etat.mode === "user") {
@@ -161,6 +179,7 @@ quandSessionExpiree(() => {
   }
 });
 
+// Formulaire de connexion : appel à l'API, stockage du jeton, entrée dans l'application.
 dom.loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = dom.loginEmail.value.trim();
@@ -188,6 +207,7 @@ dom.loginForm.addEventListener("submit", async (e) => {
   }
 });
 
+// Boutons « Continuer en tant qu'invité » et « Se connecter » (depuis le mode invité).
 dom.guestBtn.addEventListener("click", () => {
   reinitialiserEtat();
   entrerInvite();
@@ -198,6 +218,7 @@ dom.guestLogin.addEventListener("click", allerVersConnexion);
 // Panneau latéral : liste des conversations
 // ============================================================
 
+// Regroupe les conversations par ancienneté de dernière activité, comme les autres assistants IA.
 function grouperParDate(conversations) {
   const JOUR = 24 * 60 * 60 * 1000;
   const debutJour = new Date();
@@ -219,6 +240,7 @@ function grouperParDate(conversations) {
   return [...groupes].filter(([, liste]) => liste.length);
 }
 
+// Redessine la liste de la barre latérale (filtrée par la recherche). En invité : encart de connexion à la place.
 function rendreListe() {
   const connecte = etat.mode === "user";
   dom.guestCard.hidden = connecte;
@@ -237,6 +259,8 @@ function rendreListe() {
   }
 }
 
+// Une ligne de la liste : titre cliquable + menu ⋯ (renommer, supprimer),
+// ou champ de saisie quand la conversation est en cours de renommage.
 function rendreItemConversation(c) {
   const actif = c.id === etat.courante;
   const item = el("div", { class: `conv-item${actif ? " active" : ""}` });
@@ -284,11 +308,13 @@ function rendreItemConversation(c) {
   return item;
 }
 
+// Met à jour une conversation dans la liste et la remonte en tête (la plus récente).
 function majResumeConversation(resume) {
   etat.conversations = [resume, ...etat.conversations.filter((c) => c.id !== resume.id)];
   rendreListe();
 }
 
+// Renommage optimiste : affiché tout de suite, annulé si le serveur refuse.
 async function renommer(id, titre) {
   const conversation = etat.conversations.find((c) => c.id === id);
   const ancien = conversation?.title;
@@ -305,6 +331,7 @@ async function renommer(id, titre) {
   }
 }
 
+// Suppression après confirmation ; si c'était la conversation affichée, on repart d'une page vierge.
 async function supprimerConversation(c) {
   const ok = await confirmer({
     titre: "Supprimer la conversation ?",
@@ -323,6 +350,7 @@ async function supprimerConversation(c) {
   }
 }
 
+// Recherche instantanée dans les titres des conversations.
 dom.searchInput.addEventListener("input", () => {
   etat.recherche = dom.searchInput.value;
   rendreListe();
@@ -349,6 +377,7 @@ dom.newChat.addEventListener("click", () => nouvelleConversation());
 // Menu utilisateur, thème, bandeau de transparence
 // ============================================================
 
+// Bas de la barre latérale : initiale, nom et email (ou « Invité »).
 function majProfil() {
   const connecte = etat.mode === "user";
   dom.userAvatar.classList.toggle("guest", !connecte);
@@ -357,6 +386,7 @@ function majProfil() {
   dom.userSub.textContent = connecte ? etat.user.email : "Non connecté";
 }
 
+// Boutons Clair / Sombre / Système du menu utilisateur (appliqués immédiatement).
 function selecteurTheme() {
   const options = [["light", "sun", "Clair"], ["dark", "moon", "Sombre"], ["system", "monitor", "Système"]];
   const boutons = options.map(([valeur, nomIcone, libelle]) => el("button", {
@@ -369,6 +399,7 @@ function selecteurTheme() {
   return el("div", { class: "theme-switch", role: "group", "aria-label": "Thème" }, boutons);
 }
 
+// Menu utilisateur : thème, à propos de l'assistant, connexion / déconnexion.
 dom.userBtn.addEventListener("click", () => {
   if (menuOuvertPour(dom.userBtn)) return fermerMenu();
   const connecte = etat.mode === "user";
@@ -385,6 +416,7 @@ dom.userBtn.addEventListener("click", () => {
   ]);
 });
 
+// Bandeau de transparence en haut de l'écran : modèle, fournisseur et région, fournis par /api/info.
 async function chargerInfo() {
   try {
     etat.info = await api.info();
@@ -396,6 +428,8 @@ async function chargerInfo() {
   }
 }
 
+// Fenêtre « À propos » : informe l'utilisateur qu'il parle à une IA (AI Act, art. 50),
+// quel modèle répond, où il tourne, et ce qui est enregistré ou non selon le mode.
 function ouvrirAPropos() {
   const info = etat.info;
   const lignes = info
@@ -419,22 +453,26 @@ dom.aiBadge.addEventListener("click", ouvrirAPropos);
 // Fil de discussion
 // ============================================================
 
+// Titre de la conversation en haut de l'écran et dans l'onglet du navigateur.
 function majTitre() {
   dom.convTitle.textContent = etat.titre ?? "";
   document.title = etat.titre ? `${etat.titre} · ${NOM_ASSISTANT}` : NOM_ASSISTANT;
 }
 
+// L'identifiant de la conversation ouverte est mis dans l'URL pour la rouvrir après un rechargement.
 function majUrl() {
   const cible = etat.courante ? `#c/${encodeURIComponent(etat.courante)}` : location.pathname + location.search;
   history.replaceState(null, "", cible);
 }
 
+// Petit bouton icône sous une réponse (copier, régénérer, PDF).
 function boutonAction(nomIcone, libelle, action) {
   const bouton = el("button", { class: "icon-btn", type: "button", "aria-label": libelle, title: libelle }, icone(nomIcone));
   bouton.addEventListener("click", () => action(bouton));
   return bouton;
 }
 
+// Écran d'accueil d'une conversation vide : salutation et suggestions cliquables.
 function rendreAccueil() {
   const suggestions = [
     { icone: "mail", texte: "Rédige un e-mail pour annoncer une réunion d'équipe lundi à 10 h" },
@@ -454,6 +492,8 @@ function rendreAccueil() {
   );
 }
 
+// Message de l'utilisateur : bulle à droite, précédée de la pièce jointe éventuelle.
+// Texte inséré via textContent : aucun HTML saisi par l'utilisateur n'est interprété.
 function rendreMessageUtilisateur(message) {
   const bloc = el("div", { class: "msg msg-user" });
   if (message.attachment) {
@@ -464,12 +504,14 @@ function rendreMessageUtilisateur(message) {
   return bloc;
 }
 
+// « Régénérer » n'est proposé que sur la dernière réponse, et jamais pendant une génération.
 function peutRegenerer(index) {
   if (etat.enCours || index !== etat.messages.length - 1) return false;
   // En invité, le document n'est pas conservé : impossible de redemander un résumé.
   return !(etat.mode === "guest" && etat.messages[index - 1]?.attachment);
 }
 
+// Réponse du modèle : logo, Markdown sécurisé, mention si tronquée, boutons d'action.
 function rendreMessageAssistant(message, index) {
   if (!rendus.has(message)) rendus.set(message, rendreMarkdown(message.content));
   const contenu = rendus.get(message);
@@ -501,6 +543,7 @@ function rendreMessageAssistant(message, index) {
   );
 }
 
+// Indicateur animé affiché pendant que le modèle répond.
 function rendreReflexion() {
   const libelle = etat.enCours.document ? "Lecture du document…" : `${NOM_ASSISTANT} réfléchit…`;
   return el("div", { class: "msg msg-assistant" },
@@ -512,6 +555,7 @@ function rendreReflexion() {
   );
 }
 
+// Encadré d'erreur dans le fil, avec un bouton pour relancer la même action.
 function rendreEchec() {
   return el("div", { class: "msg" },
     el("div", { class: "error-box", role: "alert" },
@@ -522,6 +566,8 @@ function rendreEchec() {
   );
 }
 
+// Redessine le fil de discussion à partir de l'état : chargement, accueil, ou messages
+// (+ erreur et indicateur de réflexion le cas échéant), puis défile en bas.
 function rendreFil() {
   if (etat.chargement) {
     dom.thread.replaceChildren(el("div", { class: "thread-inner" }, el("p", { class: "loading-thread", text: "Chargement de la conversation…" })));
@@ -546,11 +592,13 @@ function rendreFil() {
   majBordureEntete();
 }
 
+// Fine bordure sous l'en-tête dès que le fil a défilé.
 function majBordureEntete() {
   dom.topbar.classList.toggle("scrolled", dom.thread.scrollTop > 0);
 }
 dom.thread.addEventListener("scroll", majBordureEntete, { passive: true });
 
+// Export d'une réponse en PDF (jsPDF) : titre, texte réparti sur plusieurs pages, mention « générée par une IA ».
 function exporterPdf(texte) {
   if (!window.jspdf) return toast("Export PDF indisponible.");
   const { jsPDF } = window.jspdf;
@@ -580,6 +628,7 @@ function exporterPdf(texte) {
 // Conversations : ouvrir, créer
 // ============================================================
 
+// Nouvelle conversation : rien n'est créé côté serveur tant que le premier message n'est pas envoyé.
 function nouvelleConversation({ focus = true } = {}) {
   arreter(true);
   Object.assign(etat, { courante: null, titre: null, messages: [], echec: null, chargement: false });
@@ -592,6 +641,8 @@ function nouvelleConversation({ focus = true } = {}) {
   if (focus) dom.composerInput.focus();
 }
 
+// Ouvre une conversation enregistrée. Les vérifications « etat.courante !== id » ignorent une réponse
+// arrivée trop tard si l'utilisateur a cliqué entre-temps sur une autre conversation.
 async function ouvrirConversation(id) {
   fermerSidebarMobile();
   if (id === etat.courante && !etat.chargement && !etat.echec) return;
@@ -631,17 +682,25 @@ async function ouvrirConversation(id) {
 // Envoi, régénération, arrêt
 // ============================================================
 
+// Annule la requête en cours (bouton « Stop » ou changement de conversation).
+// « silencieux » : pas de notification ni de restauration du message (changement de conversation).
 function arreter(silencieux = false) {
   if (!etat.enCours) return;
   etat.enCours.silencieux = silencieux;
   etat.enCours.controleur.abort();
 }
 
+// Retire un message affiché de façon provisoire (envoi échoué ou annulé).
 function retirerMessage(message) {
   const index = etat.messages.indexOf(message);
   if (index !== -1) etat.messages.splice(index, 1);
 }
 
+// Envoi d'un message (texte ou document joint).
+// Connecté : la conversation est créée au premier message puis enregistrée par le serveur.
+// Invité : l'historique est envoyé avec la question, rien n'est stocké.
+// Le message s'affiche immédiatement ; en cas d'échec il est retiré et un encadré « Réessayer » apparaît,
+// en cas d'annulation le texte est rendu dans la zone de saisie.
 async function envoyer(texte, pieceJointe) {
   if (etat.enCours || etat.chargement) return;
 
@@ -720,6 +779,7 @@ async function envoyer(texte, pieceJointe) {
   }
 }
 
+// Redemande une réponse à la dernière question ; l'ancienne réponse n'est remplacée qu'en cas de succès.
 async function regenerer() {
   if (etat.enCours || etat.messages.at(-1)?.role !== "assistant") return;
 
@@ -759,12 +819,14 @@ async function regenerer() {
 // Zone de saisie
 // ============================================================
 
+// La zone de saisie s'agrandit avec le texte, jusqu'à une hauteur maximale.
 function ajusterHauteur() {
   const zone = dom.composerInput;
   zone.style.height = "auto";
   zone.style.height = `${Math.min(zone.scrollHeight, 220)}px`;
 }
 
+// Bouton Envoyer ↔ Stop selon qu'une réponse est en cours, et affichage de la pièce jointe sélectionnée.
 function majComposer() {
   const occupe = !!etat.enCours;
   dom.sendBtn.replaceChildren(icone(occupe ? "stop" : "arrowUp"));
@@ -788,6 +850,7 @@ function majComposer() {
   }
 }
 
+// Envoi du formulaire : on vide la zone de saisie puis on lance l'envoi.
 dom.composer.addEventListener("submit", (e) => {
   e.preventDefault();
   if (etat.enCours) return;
@@ -808,11 +871,13 @@ dom.sendBtn.addEventListener("click", (e) => {
   arreter();
 });
 
+// À chaque frappe : hauteur de la zone et état du bouton Envoyer (désactivé si rien à envoyer).
 dom.composerInput.addEventListener("input", () => {
   ajusterHauteur();
   majComposer();
 });
 
+// Entrée envoie, Maj+Entrée va à la ligne (isComposing : ne pas envoyer pendant une saisie via IME).
 dom.composerInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
@@ -839,6 +904,7 @@ function lireFichier(fichier) {
   lecteur.readAsDataURL(fichier);
 }
 
+// Sélection du fichier : bouton trombone (input caché) ou dépôt sur la zone de saisie.
 dom.attachBtn.addEventListener("click", () => dom.fileInput.click());
 dom.fileInput.addEventListener("change", () => {
   lireFichier(dom.fileInput.files[0]);
@@ -869,6 +935,7 @@ document.addEventListener("keydown", (e) => {
 // Démarrage
 // ============================================================
 
+// Au chargement : jeton existant → reprise de la session ; sinon mode invité mémorisé ; sinon écran de connexion.
 async function demarrer() {
   hydraterIcones();
   if (stockage.lire(CLE_SIDEBAR) === "collapsed") dom.app.classList.add("sidebar-collapsed");

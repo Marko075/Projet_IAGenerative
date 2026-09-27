@@ -1,3 +1,5 @@
+// Routes d'authentification et d'information.
+// /info et /auth/login sont publiques ; /auth/logout et /auth/me exigent un jeton valide.
 import express from "express";
 import { handleInfo, handleLogin, handleLogout, handleMe } from "../controllers/AuthController.js";
 import { requireAuth } from "../middleware/auth.js";

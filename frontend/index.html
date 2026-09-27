@@ -17,7 +17,9 @@
 
   <link rel="stylesheet" href="css/app.css" />
 
-  <!-- Markdown, nettoyage anti-XSS, coloration du code, export PDF -->
+  <!-- Markdown, nettoyage anti-XSS, coloration du code, export PDF (versions figées).
+       "defer" + module : ces bibliothèques sont chargées avant l'exécution de js/app.js.
+       Si le CDN est indisponible, les réponses s'affichent en texte brut (voir markdown.js). -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
@@ -55,7 +57,9 @@
   </section>
 
   <!-- ============ Application ============ -->
+  <!-- Squelette fixe : app.js remplit la liste, le fil et les menus dynamiquement. -->
   <div id="app" class="app" hidden>
+    <!-- Barre latérale : nouvelle conversation, recherche, liste (ou encart invité), menu utilisateur -->
     <aside class="sidebar" id="sidebar" aria-label="Conversations">
       <div class="sidebar-top">
         <div class="sidebar-brand">
@@ -87,8 +91,10 @@
         </button>
       </div>
     </aside>
+    <!-- Voile sombre derrière la barre latérale ouverte sur mobile (un clic la referme) -->
     <div class="overlay" id="overlay"></div>
 
+    <!-- Zone principale : en-tête avec bandeau IA, fil de discussion, zone de saisie -->
     <main class="main">
       <header class="topbar" id="topbar">
         <button id="sidebar-open" class="icon-btn topbar-open" type="button" aria-label="Ouvrir le panneau latéral" data-icon="sidebar"></button>
@@ -103,6 +109,8 @@
 
       <div id="thread" class="thread" aria-live="polite"></div>
 
+      <!-- Zone de saisie : pièce jointe éventuelle, texte, trombone, bouton Envoyer / Stop,
+           et rappel permanent qu'il s'agit d'une IA -->
       <div class="composer-wrap">
         <form id="composer" class="composer">
           <div id="composer-attachment" class="composer-attachment" hidden></div>
@@ -120,6 +128,8 @@
   </div>
 
   <!-- ============ Dialogues ============ -->
+  <!-- Fenêtres natives <dialog> : confirmation de suppression / sortie du mode invité, et « À propos » -->
+
   <dialog id="confirm-dialog">
     <form method="dialog">
       <div class="dialog-body">
@@ -147,6 +157,7 @@
     </form>
   </dialog>
 
+  <!-- Éléments partagés, remplis par ui.js : menu flottant et notification éphémère -->
   <div id="popover" class="popover" role="menu" hidden></div>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
