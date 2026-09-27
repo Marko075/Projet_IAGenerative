@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Mon Chatbot</title>
 
-  <!-- Librairie pour générer des PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
@@ -22,14 +21,8 @@
       margin-bottom: 15px;
       background: #f9f9f9;
     }
-    #chatBox img {
-      max-width: 200px;
-      display: block;
-      margin: 8px 0;
-      border-radius: 6px;
-    }
     #userInput {
-      width: 55%;
+      width: 75%;
       padding: 10px;
     }
     button {
@@ -52,111 +45,48 @@
 
   <div id="chatBox"></div>
 
-  <!-- Zone pour joindre une image PNG ou un PowerPoint -->
-  <input type="file" id="fichierInput" accept=".png,.pptx" />
-  <br /><br />
-
-  <!-- Zone pour écrire un message -->
   <input type="text" id="userInput" placeholder="Pose ta question..." />
   <button onclick="envoyerMessage()">Envoyer</button>
 
   <script>
-    let fichierEnAttente = null;      // base64 pur (sans préfixe)
-    let typeFichierEnAttente = null;  // "png" ou "pptx"
-
-    // ---------- Sélection d'un fichier (image ou PowerPoint) ----------
-    document.getElementById("fichierInput").addEventListener("change", function (e) {
-      const fichier = e.target.files[0];
-      if (!fichier) return;
-
-      const chatBox = document.getElementById("chatBox");
-      const extension = fichier.name.split(".").pop().toLowerCase();
-
-      const lecteur = new FileReader();
-      lecteur.onload = function (event) {
-        const base64Complet = event.target.result;
-        const base64Pur = base64Complet.split(",")[1];
-
-        if (extension === "png") {
-          chatBox.innerHTML += `<p><strong>Toi (image) :</strong></p><img src="${base64Complet}" />`;
-          fichierEnAttente = base64Pur;
-          typeFichierEnAttente = "png";
-        } else if (extension === "pptx") {
-          chatBox.innerHTML += `<p><strong>Toi :</strong> &#128206; Fichier PowerPoint joint (${fichier.name})</p>`;
-          fichierEnAttente = base64Pur;
-          typeFichierEnAttente = "pptx";
-        }
-        chatBox.scrollTop = chatBox.scrollHeight;
-      };
-      lecteur.readAsDataURL(fichier);
-    });
-
-    // ---------- Envoyer un message (texte seul, ou avec fichier joint) ----------
     async function envoyerMessage() {
       const input = document.getElementById("userInput");
       const chatBox = document.getElementById("chatBox");
       const message = input.value.trim();
 
-      if (!message && !fichierEnAttente) return;
+      if (!message) return;
 
-      if (message) {
-        chatBox.innerHTML += `<p><strong>Toi :</strong> ${message}</p>`;
-      }
+      chatBox.innerHTML += `<p><strong>Toi :</strong> ${message}</p>`;
       input.value = "";
       chatBox.innerHTML += `<p id="loading"><em>Le chatbot r&eacute;fl&eacute;chit...</em></p>`;
 
       try {
-        const corps = { message };
-        if (typeFichierEnAttente === "png") {
-          corps.image = fichierEnAttente;
-        } else if (typeFichierEnAttente === "pptx") {
-          corps.document = fichierEnAttente;
-          corps.documentType = "pptx";
-        }
-
         const res = await fetch("http://3.120.6.19:3000/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(corps)
+          body: JSON.stringify({ message })
         });
 
-const data = await res.json();
-document.getElementById("loading").remove();
+        const data = await res.json();
+        document.getElementById("loading").remove();
 
-if (!res.ok || data.error) {
-  chatBox.innerHTML += `<p style="color:red;">Erreur serveur : ${data.error || "inconnue"}</p>`;
-} else {
-  const idReponse = "reponse-" + Date.now();
-  chatBox.innerHTML += `
-    <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
-    <button class="download-btn" onclick="telechargerPDF('${idReponse}')">&#128196; T&eacute;l&eacute;charger en PDF</button>
-  `;
-}
+        if (!res.ok || data.error) {
+          chatBox.innerHTML += `<p style="color:red;">Erreur serveur : ${data.error || "inconnue"}</p>`;
+        } else {
+          const idReponse = "reponse-" + Date.now();
+          chatBox.innerHTML += `
+            <p id="${idReponse}"><strong>Chatbot :</strong> ${data.response}</p>
+            <button class="download-btn" onclick="telechargerPDF('${idReponse}')">&#128196; T&eacute;l&eacute;charger en PDF</button>
+          `;
+        }
       } catch (err) {
         document.getElementById("loading").remove();
         chatBox.innerHTML += `<p style="color:red;">Erreur : impossible de contacter le serveur</p>`;
       }
 
-      fichierEnAttente = null;
-      typeFichierEnAttente = null;
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // ---------- Télécharger une réponse en PDF ----------
-    function telechargerPDF(idReponse) {
-      const texte = document.getElementById(idReponse).innerText.replace("Chatbot :", "").trim();
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      doc.setFontSize(12);
-      const lignes = doc.splitTextToSize(texte, 180);
-      doc.text(lignes, 10, 10);
-
-      doc.save("reponse-chatbot.pdf");
-    }
-
-    // Permet d'envoyer avec la touche Entrée
     document.getElementById("userInput").addEventListener("keypress", function (e) {
       if (e.key === "Enter") envoyerMessage();
     });
